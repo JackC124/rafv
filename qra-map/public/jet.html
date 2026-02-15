@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>QRA Jet | Pilot Page</title>
+  <style>
+    body {margin:0;font-family:"Courier New",monospace;background:#111;color:#0f0;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;}
+    h1 { margin-bottom:20px; }
+
+    input, button { padding:8px 12px; margin:5px; font-size:16px;
+      background:#000; color:#0f0; border:1px solid #0f0; border-radius:6px;}
+    button:hover{background:#0f0;color:#000;cursor:pointer;}
+
+    #loginBox, #statusBox { display:flex; flex-direction:column; align-items:center; background:#111;
+      padding:20px; border:1px solid #0f0; border-radius:8px; min-width:300px; text-align:center; }
+
+    #statusBox { display:none; position:relative; }
+
+    .scrambled { animation: flashRed 1s infinite; }
+    @keyframes flashRed {
+      0% { background:#111;color:#0f0; }
+      50% { background:#f00;color:#fff; }
+      100% { background:#111;color:#0f0; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>QRA Aircraft Login</h1>
+
+<div id="loginBox">
+  <label>Callsign: <input type="text" id="callsign" placeholder="Enter callsign"></label>
+  <label>Aircraft Type: <input type="text" id="aircraftType" placeholder="Enter aircraft type"></label>
+  <button id="loginBtn">Login as QRA</button>
+</div>
+
+<div id="statusBox">
+  <div><b>Callsign:</b> <span id="statusCallsign"></span></div>
+  <div><b>Aircraft:</b> <span id="statusAircraft"></span></div>
+  <div><b>Status:</b> <span id="statusText">Ready</span></div>
+  <button id="resetBtn">Reset to Ready</button>
+</div>
+
+<script>
+let currentJet = null;
+
+// Save jet info to localStorage
+const saveStatus = () => {
+  if(!currentJet) return;
+  const jets = JSON.parse(localStorage.getItem("onlineJets")||"{}");
+  jets[currentJet.callsign] = currentJet;
+  localStorage.setItem("onlineJets",JSON.stringify(jets));
+};
+
+// Update UI
+const updateStatusUI = () => {
+  document.getElementById("statusCallsign").innerText = currentJet.callsign;
+  document.getElementById("statusAircraft").innerText = currentJet.aircraft;
+  document.getElementById("statusText").innerText = currentJet.status;
+  const box = document.getElementById("statusBox");
+  if(currentJet.status==="Scrambled"){ box.classList.add("scrambled"); }
+  else{ box.classList.remove("scrambled"); }
+};
+
+// Login
+document.getElementById("loginBtn").addEventListener("click",()=>{
+  const callsign = document.getElementById("callsign").value.trim();
+  const aircraftType = document.getElementById("aircraftType").value.trim();
+  if(!callsign || !aircraftType){ alert("Enter both callsign and aircraft"); return; }
+  currentJet={callsign, aircraft: aircraftType, status:"Ready", lastSeen: Date.now()};
+  saveStatus();
+
+  document.getElementById("loginBox").style.display="none";
+  document.getElementById("statusBox").style.display="flex";
+  updateStatusUI();
+
+  // Start heartbeat to stay online
+  setInterval(()=>{
+    currentJet.lastSeen = Date.now();
+    saveStatus();
+  },5000);
+});
+
+// Reset
+document.getElementById("resetBtn").addEventListener("click",()=>{
+  if(currentJet){
+    currentJet.status="Ready";
+    saveStatus();
+    updateStatusUI();
+  }
+});
+
+// Scramble alert handler
+const handleAlert = (alertCallsign) => {
+  if(currentJet && currentJet.callsign===alertCallsign){
+    currentJet.status="Scrambled";
+    saveStatus();
+    updateStatusUI();
+  }
+};
+
+// Listen for other tabs
+window.addEventListener("storage",(e)=>{
+  if(e.key==="qraAlert") handleAlert(e.newValue);
+});
+
+// Same tab
+window.addEventListener("qraCustomEvent", e=>{
+  handleAlert(e.detail);
+});
+</script>
+</body>
+</html>
